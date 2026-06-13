@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "901782544600",
+    "project_id": "quanlynhatro-115d6",
+    "storage_bucket": "quanlynhatro-115d6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:901782544600:android:158b0161e6ab3df2c037ad",
+        "android_client_info": {
+          "package_name": "com.example.room_rental_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDIr-dXkRPTMyxfK0RJkAoJXoDOT9Q8rs0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
