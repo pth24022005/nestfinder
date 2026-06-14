@@ -8,6 +8,10 @@ class CustomTextField extends StatelessWidget {
   final TextEditingController controller;
   final Widget? suffixIcon;
 
+  // Thêm 2 biến này để xử lý sự kiện ấn Enter trên bàn phím
+  final TextInputAction? textInputAction;
+  final void Function(String)? onSubmitted;
+
   const CustomTextField({
     super.key,
     required this.label,
@@ -16,6 +20,8 @@ class CustomTextField extends StatelessWidget {
     required this.controller,
     this.isPassword = false,
     this.suffixIcon,
+    this.textInputAction, // Thêm vào constructor
+    this.onSubmitted, // Thêm vào constructor
   });
 
   @override
@@ -31,6 +37,11 @@ class CustomTextField extends StatelessWidget {
         TextFormField(
           controller: controller,
           obscureText: isPassword,
+
+          // Gắn 2 thuộc tính này vào TextFormField
+          textInputAction: textInputAction,
+          onFieldSubmitted: onSubmitted,
+
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: Icon(prefixIcon, color: Colors.grey),

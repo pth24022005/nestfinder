@@ -13,13 +13,17 @@ import '../../features/admin/tenants/tenants_screen.dart';
 import '../../features/admin/properties/utility_reading_screen.dart';
 import '../../features/admin/profile/profile_screen.dart';
 import '../../features/admin/properties/create_contract_screen.dart';
-// --- IMPORT MÀN HÌNH THÔNG BÁO ---
 import '../../features/admin/notifications/notifications_screen.dart';
 
 import '../../features/tenant/home/tenant_home_screen.dart';
 import '../../features/admin/properties/add_room_screen.dart';
 import '../../features/admin/properties/edit_tenant_screen.dart';
-import '../../features/admin/properties/edit_room_screen.dart'; 
+import '../../features/admin/properties/edit_room_screen.dart';
+
+// --- IMPORT MÀN HÌNH BÁO CÁO SỰ CỐ CỦA KHÁCH ---
+import '../../features/tenant/maintenance/tenant_maintenance_screen.dart';
+import '../../features/tenant/invoices/tenant_invoice_history_screen.dart';
+import '../../features/tenant/contract/tenant_contract_screen.dart';
 
 // Biến global key dùng cho Router
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -38,15 +42,12 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       switch (authState) {
         case AuthState.unauthenticated:
-          // Nếu chưa đăng nhập mà cố vào màn khác thì khóa lại, đẩy về login
           return isLoggingIn ? null : '/login';
 
         case AuthState.admin:
-          // Nếu Chủ trọ đã đăng nhập mà đang đứng ở màn login thì đẩy thẳng vào Dashboard
           return isLoggingIn ? '/admin/dashboard' : null;
 
         case AuthState.tenant:
-          // Nếu Khách thuê đã đăng nhập mà đang đứng ở màn login thì đẩy thẳng vào trang xem hóa đơn
           return isLoggingIn ? '/tenant/home' : null;
       }
     },
@@ -55,14 +56,12 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
 
-      // === LAYOUT CHO ADMIN (CHỦ TRỌ) SỬ DỤNG BOTTOM NAVIGATION BAR ===
+      // === LAYOUT CHO ADMIN (CHỦ TRỌ) ===
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
-          // Trả về cái "Vỏ" chứa Bottom Navigation Bar
           return AdminMainScreen(navigationShell: navigationShell);
         },
         branches: [
-          // Nhánh 1: Tổng quan (Index 0)
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -71,52 +70,42 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // Nhánh 2: Phòng trọ (Index 1)
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/admin/properties', // Cấp 0 (Cha)
+                path: '/admin/properties',
                 builder: (context, state) => const PropertiesScreen(),
                 routes: [
-                  // 1. Màn hình chi tiết phòng
                   GoRoute(
-                    path: 'detail', // Tự động thành: /admin/properties/detail
+                    path: 'detail',
                     builder: (context, state) {
                       final roomData = state.extra as RoomModel;
                       return RoomDetailScreen(room: roomData);
                     },
                     routes: [
-                      // Sub-route: Chốt điện nước
                       GoRoute(
-                        path:
-                            'reading', // Tự động thành: /admin/properties/detail/reading
+                        path: 'reading',
                         builder: (context, state) {
                           final roomData = state.extra as RoomModel;
                           return UtilityReadingScreen(room: roomData);
                         },
                       ),
-                      // Sub-route: Tạo hợp đồng
                       GoRoute(
-                        path:
-                            'contract', // Full path: /admin/properties/detail/contract
+                        path: 'contract',
                         builder: (context, state) {
                           final roomData = state.extra as RoomModel;
                           return CreateContractScreen(room: roomData);
                         },
                       ),
-                      // Sub-route: Sửa khách thuê
                       GoRoute(
-                        path:
-                            'edit-tenant', // Full path: /admin/properties/detail/edit-tenant
+                        path: 'edit-tenant',
                         builder: (context, state) {
                           final roomData = state.extra as RoomModel;
                           return EditTenantScreen(room: roomData);
                         },
                       ),
-                      // Sub-route: Sửa phòng
                       GoRoute(
-                        path:
-                            'edit', // Full path: /admin/properties/detail/edit
+                        path: 'edit',
                         builder: (context, state) {
                           final roomData = state.extra as RoomModel;
                           return EditRoomScreen(room: roomData);
@@ -124,18 +113,14 @@ final routerProvider = Provider<GoRouter>((ref) {
                       ),
                     ],
                   ),
-
-                  // 2. Màn hình thêm phòng mới (Nằm CÙNG CẤP với detail)
                   GoRoute(
-                    path: 'add', // Tự động thành: /admin/properties/add
+                    path: 'add',
                     builder: (context, state) => const AddRoomScreen(),
                   ),
-                ], // Kết thúc mảng routes của properties
+                ],
               ),
             ],
           ),
-
-          // --- NHÁNH 3: THÔNG BÁO (Index 2 - VỪA CHÈN VÀO ĐÂY) ---
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -144,8 +129,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-
-          // Nhánh 4: Khách thuê (Index 3 - Đẩy lùi xuống)
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -154,7 +137,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // Nhánh 5: Cài đặt cá nhân (Index 4 - Đẩy lùi xuống)
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -166,10 +148,34 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // === MÀN HÌNH DÀNH CHO KHÁCH THUÊ ===
+      // === CÁC MÀN HÌNH DÀNH CHO KHÁCH THUÊ ===
       GoRoute(
         path: '/tenant/home',
         builder: (context, state) => const TenantHomeScreen(),
+      ),
+
+      // ĐÃ THÊM: Route cho màn hình Báo cáo sự cố
+      GoRoute(
+        path: '/tenant/maintenance',
+        builder: (context, state) {
+          // Ép kiểu extra nhận được thành String (ID phòng)
+          final roomId = state.extra as String;
+          return TenantMaintenanceScreen(roomId: roomId);
+        },
+      ),
+      GoRoute(
+        path: '/tenant/invoices',
+        builder: (context, state) {
+          final roomId = state.extra as String;
+          return TenantInvoiceHistoryScreen(roomId: roomId);
+        },
+      ),
+      GoRoute(
+        path: '/tenant/contract',
+        builder: (context, state) {
+          final roomId = state.extra as String;
+          return TenantContractScreen(roomId: roomId);
+        },
       ),
     ],
   );

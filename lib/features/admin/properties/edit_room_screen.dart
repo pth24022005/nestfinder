@@ -13,7 +13,7 @@ class EditRoomScreen extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Tự động điền dữ liệu CŨ của tất cả các trường
+    // --- BỘ ĐIỀU KHIỂN (Tự động điền dữ liệu cũ của phòng) ---
     final nameController = useTextEditingController(text: room.name);
     final priceController = useTextEditingController(
       text: room.price.toInt().toString(),
@@ -31,14 +31,20 @@ class EditRoomScreen extends HookConsumerWidget {
     final selectedStatus = useState<String>(room.status.name);
     final isLoading = useState<bool>(false);
 
+    // Hàm hỗ trợ hiển thị thông báo lỗi ngắn gọn
     void showError(String message) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     }
 
+    // --- LOGIC CẬP NHẬT DỮ LIỆU (GIỮ NGUYÊN 100%) ---
     Future<void> _submitData() async {
       final name = nameController.text.trim();
       final priceText = priceController.text.trim();
@@ -94,178 +100,352 @@ class EditRoomScreen extends HookConsumerWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(
-          'Sửa thông tin - ${room.name}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
         backgroundColor: Colors.white,
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black87),
+        centerTitle: false,
+        title: const Text(
+          'Sửa thông tin phòng',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 24,
+            color: Colors.black87,
+            letterSpacing: -0.5,
+          ),
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // --- SECTION 1: THÔNG TIN CHÍNH ---
             const Text(
-              'Thông tin bắt buộc',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              'THÔNG TIN CHÍNH',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: Colors.grey,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildModernInput(
+              controller: nameController,
+              label: 'Tên phòng',
+              hint: 'VD: P.101',
+              icon: Icons.meeting_room_outlined,
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildTextField(
-                    controller: nameController,
-                    label: 'Tên phòng',
-                    icon: Icons.meeting_room,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildTextField(
-                    controller: priceController,
-                    label: 'Giá (VNĐ)',
-                    icon: Icons.monetization_on,
-                    isNumber: true,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
+            _buildPriceInput(priceController),
+            const SizedBox(height: 32),
 
+            // --- SECTION 2: CHI TIẾT PHÒNG ---
             const Text(
-              'Thông tin chi tiết',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              'CHI TIẾT PHÒNG',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: Colors.grey,
+                letterSpacing: 1.2,
+              ),
             ),
-            const SizedBox(height: 16),
-            _buildTextField(
+            const SizedBox(height: 12),
+            _buildModernInput(
               controller: areaController,
-              label: 'Diện tích (m2)',
-              icon: Icons.square_foot,
+              label: 'Diện tích',
+              hint: 'm²',
+              icon: Icons.square_foot_outlined,
               isNumber: true,
             ),
             const SizedBox(height: 16),
-            _buildTextField(
+            _buildModernInput(
               controller: furnitureController,
               label: 'Nội thất',
-              icon: Icons.chair_alt,
+              hint: 'Điều hòa, giường, tủ...',
+              icon: Icons.weekend_outlined,
             ),
             const SizedBox(height: 16),
-            _buildTextField(
+            _buildModernInput(
               controller: descController,
-              label: 'Mô tả',
-              icon: Icons.description,
+              label: 'Mô tả thêm',
+              hint: 'Không bắt buộc...',
+              icon: Icons.notes_outlined,
               maxLines: 3,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
 
+            // --- SECTION 3: TRẠNG THÁI (CHỈ HIỆN NẾU PHÒNG CHƯA CHO THUÊ) ---
             if (room.status != RoomStatus.rented) ...[
               const Text(
-                'Trạng thái:',
-                style: TextStyle(fontWeight: FontWeight.w600),
+                'TRẠNG THÁI PHÒNG',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey,
+                  letterSpacing: 1.2,
+                ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _buildStatusRadio(
-                    selectedStatus,
-                    'available',
-                    'Phòng trống',
-                    Colors.green,
-                  ),
-                  const SizedBox(width: 12),
-                  _buildStatusRadio(
-                    selectedStatus,
-                    'maintenance',
-                    'Bảo trì',
-                    Colors.orange,
-                  ),
-                ],
+              const SizedBox(height: 12),
+              _buildStatusToggle(selectedStatus),
+            ] else ...[
+              // Thông báo nhỏ nếu phòng đang có người thuê
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.blue.shade100),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.blue.shade700,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Phòng đang có khách thuê, không thể thay đổi trạng thái lúc này.',
+                        style: TextStyle(
+                          color: Colors.blue.shade800,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
+
+            // Khoảng trống dưới cùng để tránh bị che bởi nút
+            const SizedBox(height: 100),
           ],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: SizedBox(
-            height: 54,
-            child: ElevatedButton(
-              onPressed: isLoading.value ? null : _submitData,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).primaryColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: isLoading.value
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text(
-                      'Lưu thay đổi',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+
+      // --- NÚT LƯU THAY ĐỔI ---
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+        color: Colors.white, // Nền trắng che mờ nội dung cuộn bên dưới
+        child: ElevatedButton(
+          onPressed: isLoading.value ? null : _submitData,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF1C1C1E), // Màu đen nhám
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
           ),
+          child: isLoading.value
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+              : const Text(
+                  'LƯU THAY ĐỔI',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
         ),
       ),
     );
   }
 
-  Widget _buildTextField({
+  // ========================================================
+  // CÁC WIDGET GIAO DIỆN TÙY CHỈNH (ATOMIC COMPONENTS)
+  // ========================================================
+
+  // 1. Ô nhập liệu tiêu chuẩn (Border-less, nền xám nhạt)
+  Widget _buildModernInput({
     required TextEditingController controller,
     required String label,
+    required String hint,
     required IconData icon,
     bool isNumber = false,
     int maxLines = 1,
   }) {
-    return TextField(
-      controller: controller,
-      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: maxLines == 1
-            ? Icon(icon)
-            : Padding(
-                padding: const EdgeInsets.only(bottom: 48),
-                child: Icon(icon),
-              ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        filled: true,
-        fillColor: Colors.grey.shade50,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F5F7), // Xám cực nhạt
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: maxLines > 1
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.center,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(top: maxLines > 1 ? 4.0 : 0),
+            child: Icon(icon, color: Colors.grey.shade500, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                TextField(
+                  controller: controller,
+                  keyboardType: isNumber
+                      ? TextInputType.number
+                      : TextInputType.text,
+                  maxLines: maxLines,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    color: Colors.black87,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.only(top: 4),
+                    border: InputBorder.none,
+                    hintText: hint,
+                    hintStyle: TextStyle(
+                      color: Colors.grey.shade400,
+                      fontWeight: FontWeight.normal,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildStatusRadio(
-    ValueNotifier<String> selectedStatus,
-    String value,
-    String label,
-    Color color,
-  ) {
-    final isSelected = selectedStatus.value == value;
-    return InkWell(
-      onTap: () => selectedStatus.value = value,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.1) : Colors.transparent,
-          border: Border.all(color: isSelected ? color : Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? color : Colors.black87,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+  // 2. Ô nhập Giá tiền đặc biệt (Nổi bật, Typography lớn)
+  Widget _buildPriceInput(TextEditingController controller) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FBF9), // Xanh lá cực kỳ nhạt
+        border: Border.all(color: const Color(0xFFE8F5E9), width: 1.5),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Giá thuê mỗi tháng',
+            style: TextStyle(
+              color: Color(0xFF2E7D32),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Text(
+                'đ',
+                style: TextStyle(
+                  color: Color(0xFF2E7D32),
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                    border: InputBorder.none,
+                    hintText: '0',
+                    hintStyle: TextStyle(color: Colors.grey.shade300),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 3. Nút Toggle chọn trạng thái phòng (Trống / Bảo trì)
+  Widget _buildStatusToggle(ValueNotifier<String> selectedStatus) {
+    final isAvailable = selectedStatus.value == 'available';
+
+    return Row(
+      children: [
+        // Nút Trống
+        Expanded(
+          child: InkWell(
+            onTap: () => selectedStatus.value = 'available',
+            borderRadius: BorderRadius.circular(16),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: isAvailable
+                    ? const Color(0xFF388E3C)
+                    : const Color(0xFFF4F5F7),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                Icons.check_circle_outline,
+                color: isAvailable ? Colors.white : Colors.grey.shade400,
+                size: 28,
+              ),
+            ),
           ),
         ),
-      ),
+        const SizedBox(width: 16),
+        // Nút Bảo trì
+        Expanded(
+          child: InkWell(
+            onTap: () => selectedStatus.value = 'maintenance',
+            borderRadius: BorderRadius.circular(16),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: !isAvailable
+                    ? Colors.orange.shade600
+                    : const Color(0xFFF4F5F7),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                Icons.build_circle_outlined,
+                color: !isAvailable ? Colors.white : Colors.grey.shade400,
+                size: 28,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

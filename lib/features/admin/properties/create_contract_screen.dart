@@ -14,7 +14,7 @@ class CreateContractScreen extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // --- THÔNG MINH HÓA CONTROLLER: Nếu là gia hạn, điền sẵn thông tin cũ ---
+    // --- THÔNG MINH HÓA CONTROLLER: Điền sẵn thông tin cũ nếu có ---
     final tenantNameController = useTextEditingController(
       text: room.tenantName,
     );
@@ -32,23 +32,20 @@ class CreateContractScreen extends HookConsumerWidget {
           : '',
     );
 
-    // Ngày bắt đầu: Nếu gia hạn thì lấy ngày hết hạn cũ làm mốc bắt đầu mới, ngược lại lấy ngày hôm nay
+    // Ngày bắt đầu: Nếu gia hạn thì lấy ngày hết hạn cũ, ngược lại lấy ngày hôm nay
     final startDate = useState<DateTime>(
       room.contractEndDate ?? DateTime.now(),
     );
+
     // Ngày kết thúc: Tự động cộng thêm 180 ngày (6 tháng)
     final endDate = useState<DateTime>(
       (room.contractEndDate ?? DateTime.now()).add(const Duration(days: 180)),
     );
 
     final isLoading = useState<bool>(false);
-    final dateFormat = DateFormat('dd/MM/yyyy');
-    final isRenewing =
-        room.status ==
-        RoomStatus
-            .rented; // Biến kiểm tra xem có phải đang đi luồng gia hạn không
+    final isRenewing = room.status == RoomStatus.rented;
 
-    Future<void> _selectDate(
+    Future<void> selectDate(
       BuildContext context,
       ValueNotifier<DateTime> dateState, {
       bool isStart = true,
@@ -58,6 +55,18 @@ class CreateContractScreen extends HookConsumerWidget {
         initialDate: dateState.value,
         firstDate: isStart ? DateTime(2020) : startDate.value,
         lastDate: DateTime(2035),
+        builder: (context, child) {
+          return Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: const ColorScheme.light(
+                primary: Color(0xFF2E7D32), // Màu Xanh NestFinder
+                onPrimary: Colors.white,
+                onSurface: Colors.black87,
+              ),
+            ),
+            child: child!,
+          );
+        },
       );
       if (picked != null && picked != dateState.value) {
         dateState.value = picked;
@@ -67,7 +76,10 @@ class CreateContractScreen extends HookConsumerWidget {
       }
     }
 
-    Future<void> _submitContract() async {
+    // --- LOGIC LƯU HỢP ĐỒNG VÀ TẠO TÀI KHOẢN ---
+    Future<void> submitContract() async {
+      FocusScope.of(context).unfocus();
+
       final name = tenantNameController.text.trim();
       final phone = tenantPhoneController.text.trim();
       final cccd = cccdController.text.trim();
@@ -102,6 +114,7 @@ class CreateContractScreen extends HookConsumerWidget {
       try {
         isLoading.value = true;
 
+        // 1. CẬP NHẬT THÔNG TIN PHÒNG & HỢP ĐỒNG
         final updateData = {
           'status': 'rented',
           'tenantName': name,
@@ -111,12 +124,26 @@ class CreateContractScreen extends HookConsumerWidget {
           'contractDeposit': deposit,
           'contractStartDate': startDate.value.toIso8601String(),
           'contractEndDate': endDate.value.toIso8601String(),
-          'extendedAt': isRenewing
-              ? FieldValue.serverTimestamp()
-              : null, // Nhật ký ghi nhận thời gian gia hạn
+          'extendedAt': isRenewing ? FieldValue.serverTimestamp() : null,
         };
 
         await ref.read(roomRepositoryProvider).updateRoom(room.id, updateData);
+
+        // 2. TẠO TÀI KHOẢN KHÁCH THUÊ MỚI TRÊN FIREBASE
+        final userRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(phone);
+        final userDoc = await userRef.get();
+
+        // Chỉ tạo tài khoản nếu khách chưa từng tồn tại trên hệ thống
+        if (!userDoc.exists) {
+          await userRef.set({
+            'phone': phone,
+            'password': '66668888', // Mật khẩu mặc định
+            'role': 'tenant',
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -124,7 +151,7 @@ class CreateContractScreen extends HookConsumerWidget {
               content: Text(
                 isRenewing
                     ? 'Gia hạn hợp đồng thành công!'
-                    : 'Tạo hợp đồng thành công!',
+                    : 'Tạo hợp đồng & Tài khoản khách thành công!',
               ),
               backgroundColor: Colors.green,
             ),
@@ -142,228 +169,341 @@ class CreateContractScreen extends HookConsumerWidget {
       }
     }
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: Text(
-          isRenewing
-              ? 'Gia hạn hợp đồng - ${room.name}'
-              : 'Tạo hợp đồng - ${room.name}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Hồ sơ khách thuê',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.black87),
+          centerTitle: false,
+          title: Text(
+            isRenewing ? 'Gia hạn - ${room.name}' : 'Hợp đồng - ${room.name}',
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 22,
+              color: Colors.black87,
+              letterSpacing: -0.5,
             ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: tenantNameController,
-              label: 'Họ và tên người đại diện',
-              icon: Icons.person,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: tenantPhoneController,
-              label: 'Số điện thoại',
-              icon: Icons.phone,
-              isNumber: true,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: cccdController,
-              label: 'Số CCCD/CMND',
-              icon: Icons.badge,
-              isNumber: true,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: addressController,
-              label: 'Địa chỉ thường trú',
-              icon: Icons.location_on,
-              maxLines: 2,
-            ),
-            const SizedBox(height: 32),
-
-            const Text(
-              'Thông tin hợp đồng mới',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: depositController,
-              label: 'Tiền cọc mới (VNĐ)',
-              icon: Icons.monetization_on,
-              isNumber: true,
-            ),
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    // NẾU LÀ GIA HẠN -> KHÓA BẤM (null), NẾU LÀ TẠO MỚI -> CHO CHỌN NGÀY
-                    onTap: isRenewing
-                        ? null
-                        : () => _selectDate(context, startDate, isStart: true),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(12),
-                        // Nếu bị khóa thì đổi nền sang màu xám nhạt cho người dùng biết
-                        color: isRenewing
-                            ? Colors.grey.shade100
-                            : Colors.grey.shade50,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Đổi nhãn thông báo trực quan
-                          Text(
-                            isRenewing
-                                ? 'Ngày bắt đầu (Cố định theo HĐ cũ)'
-                                : 'Ngày bắt đầu',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.calendar_today,
-                                size: 16,
-                                color: isRenewing ? Colors.grey : Colors.blue,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                dateFormat.format(startDate.value),
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  // Đổi màu chữ xám nếu bị khóa
-                                  color: isRenewing
-                                      ? Colors.grey.shade600
-                                      : Colors.black,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: InkWell(
-                    onTap: () => _selectDate(context, endDate, isStart: false),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.grey.shade50,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Ngày kết thúc mới',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.event_available,
-                                size: 16,
-                                color: Colors.green,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                dateFormat.format(endDate.value),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-          ],
+          ),
         ),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: SizedBox(
-            height: 54,
-            child: ElevatedButton(
-              onPressed: isLoading.value ? null : _submitContract,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).primaryColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // --- SECTION 1: HỒ SƠ KHÁCH THUÊ ---
+              const Text(
+                'HỒ SƠ KHÁCH THUÊ',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey,
+                  letterSpacing: 1.2,
                 ),
               ),
-              child: isLoading.value
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : Text(
-                      isRenewing ? 'Xác nhận gia hạn' : 'Xác nhận cho thuê',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+              const SizedBox(height: 12),
+              _buildModernInput(
+                controller: tenantNameController,
+                label: 'Họ và tên người đại diện',
+                hint: 'Nguyễn Văn A',
+                icon: Icons.person_outline,
+              ),
+              const SizedBox(height: 16),
+              _buildModernInput(
+                controller: tenantPhoneController,
+                label: 'Số điện thoại',
+                hint: '0912345678',
+                icon: Icons.phone_outlined,
+                isNumber: true,
+              ),
+              const SizedBox(height: 16),
+              _buildModernInput(
+                controller: cccdController,
+                label: 'Số CCCD/CMND',
+                hint: '0012010...',
+                icon: Icons.badge_outlined,
+                isNumber: true,
+              ),
+              const SizedBox(height: 16),
+              _buildModernInput(
+                controller: addressController,
+                label: 'Địa chỉ thường trú',
+                hint: 'Nhập địa chỉ...',
+                icon: Icons.location_on_outlined,
+                maxLines: 2,
+              ),
+              const SizedBox(height: 32),
+
+              // --- SECTION 2: THÔNG TIN HỢP ĐỒNG ---
+              const Text(
+                'THÔNG TIN HỢP ĐỒNG MỚI',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildPriceInput(depositController),
+              const SizedBox(height: 16),
+
+              // Chọn ngày tháng
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDateSelector(
+                      context: context,
+                      label: isRenewing
+                          ? 'Bắt đầu (Theo HĐ cũ)'
+                          : 'Ngày bắt đầu',
+                      date: startDate.value,
+                      iconColor: isRenewing
+                          ? Colors.grey
+                          : Colors.blue.shade600,
+                      isLocked: isRenewing,
+                      onTap: isRenewing
+                          ? null
+                          : () => selectDate(context, startDate, isStart: true),
                     ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildDateSelector(
+                      context: context,
+                      label: 'Ngày kết thúc mới',
+                      date: endDate.value,
+                      iconColor: const Color(0xFF2E7D32),
+                      isLocked: false,
+                      onTap: () => selectDate(context, endDate, isStart: false),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 100),
+            ],
+          ),
+        ),
+
+        // --- NÚT XÁC NHẬN CHÍNH ---
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        floatingActionButton: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          color: Colors.white,
+          child: ElevatedButton(
+            onPressed: isLoading.value ? null : submitContract,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1C1C1E), // Đen nhám
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
+            child: isLoading.value
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : Text(
+                    isRenewing ? 'XÁC NHẬN GIA HẠN' : 'XÁC NHẬN CHO THUÊ',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildTextField({
+  // ========================================================
+  // CÁC WIDGET GIAO DIỆN TÙY CHỈNH (ATOMIC COMPONENTS)
+  // ========================================================
+
+  Widget _buildModernInput({
     required TextEditingController controller,
     required String label,
+    required String hint,
     required IconData icon,
     bool isNumber = false,
     int maxLines = 1,
   }) {
-    return TextField(
-      controller: controller,
-      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Padding(
-          padding: EdgeInsets.only(bottom: maxLines > 1 ? 24 : 0),
-          child: Icon(icon),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F5F7),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: maxLines > 1
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.center,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(top: maxLines > 1 ? 4.0 : 0),
+            child: Icon(icon, color: Colors.grey.shade500, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                TextField(
+                  controller: controller,
+                  keyboardType: isNumber
+                      ? TextInputType.number
+                      : TextInputType.text,
+                  maxLines: maxLines,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    color: Colors.black87,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.only(top: 4),
+                    border: InputBorder.none,
+                    hintText: hint,
+                    hintStyle: TextStyle(
+                      color: Colors.grey.shade400,
+                      fontWeight: FontWeight.normal,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriceInput(TextEditingController controller) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FBF9),
+        border: Border.all(color: const Color(0xFFE8F5E9), width: 1.5),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Tiền cọc giữ chỗ',
+            style: TextStyle(
+              color: Color(0xFF2E7D32),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Text(
+                'đ',
+                style: TextStyle(
+                  color: Color(0xFF2E7D32),
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                    border: InputBorder.none,
+                    hintText: '0',
+                    hintStyle: TextStyle(color: Colors.grey.shade300),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateSelector({
+    required BuildContext context,
+    required String label,
+    required DateTime date,
+    required Color iconColor,
+    required bool isLocked,
+    required VoidCallback? onTap,
+  }) {
+    final dateFormat = DateFormat('dd/MM/yyyy');
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: isLocked ? Colors.grey.shade100 : const Color(0xFFF4F5F7),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isLocked ? Colors.transparent : Colors.grey.shade200,
+          ),
         ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        filled: true,
-        fillColor: Colors.grey.shade50,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.calendar_today, size: 18, color: iconColor),
+                const SizedBox(width: 8),
+                Text(
+                  dateFormat.format(date),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: isLocked ? Colors.grey.shade500 : Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

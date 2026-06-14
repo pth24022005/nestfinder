@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../shared/custom_button.dart';
 import '../../../shared/custom_text_field.dart';
 
@@ -9,6 +10,7 @@ class ChangePasswordBottomSheet extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final phoneController = useTextEditingController(); // Thêm SĐT
     final oldPasswordController = useTextEditingController();
     final newPasswordController = useTextEditingController();
     final confirmPasswordController = useTextEditingController();
@@ -16,9 +18,13 @@ class ChangePasswordBottomSheet extends HookConsumerWidget {
     final isLoading = useState(false);
 
     Future<void> handleSave() async {
-      // Validate cơ bản
-      if (oldPasswordController.text.isEmpty ||
-          newPasswordController.text.isEmpty ||
+      final phone = phoneController.text.trim();
+      final oldPass = oldPasswordController.text.trim();
+      final newPass = newPasswordController.text.trim();
+
+      if (phone.isEmpty ||
+          oldPass.isEmpty ||
+          newPass.isEmpty ||
           confirmPasswordController.text.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Vui lòng nhập đầy đủ thông tin')),
@@ -26,7 +32,7 @@ class ChangePasswordBottomSheet extends HookConsumerWidget {
         return;
       }
 
-      if (newPasswordController.text != confirmPasswordController.text) {
+      if (newPass != confirmPasswordController.text.trim()) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Mật khẩu mới không khớp!')),
         );
@@ -34,18 +40,46 @@ class ChangePasswordBottomSheet extends HookConsumerWidget {
       }
 
       isLoading.value = true;
-      // Giả lập gọi API đổi mật khẩu
-      await Future.delayed(const Duration(seconds: 1));
-      isLoading.value = false;
+      try {
+        // 1. Kiểm tra xem SĐT và Pass cũ có khớp trên hệ thống không
+        final query = await FirebaseFirestore.instance
+            .collection('users')
+            .where('phone', isEqualTo: phone)
+            .where('password', isEqualTo: oldPass)
+            .get();
 
-      if (context.mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đổi mật khẩu thành công!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (query.docs.isEmpty) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Số điện thoại hoặc mật khẩu cũ sai!'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        } else {
+          // 2. Khớp thì tiến hành Update mật khẩu mới
+          await query.docs.first.reference.update({'password': newPass});
+
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Đổi mật khẩu thành công! Bạn có thể đăng nhập ngay.',
+                ),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (context.mounted)
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+          );
+      } finally {
+        isLoading.value = false;
       }
     }
 
@@ -67,7 +101,6 @@ class ChangePasswordBottomSheet extends HookConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Thanh gạt (Handle)
             Center(
               child: Container(
                 width: 40,
@@ -79,13 +112,19 @@ class ChangePasswordBottomSheet extends HookConsumerWidget {
                 ),
               ),
             ),
-
             const Text(
               'Đổi mật khẩu',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
 
+            CustomTextField(
+              label: 'Số điện thoại',
+              hint: 'Nhập SĐT của bạn',
+              prefixIcon: Icons.phone_android,
+              controller: phoneController,
+            ),
+            const SizedBox(height: 16),
             CustomTextField(
               label: 'Mật khẩu hiện tại',
               hint: 'Nhập mật khẩu cũ',

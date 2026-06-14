@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'properties/properties_screen.dart'; // Để lấy RoomStatus
-import 'properties/data/room_repository.dart'; // Để lấy danh sách phòng
 
-// Đổi từ StatelessWidget sang ConsumerWidget để lắng nghe được dữ liệu
+// Import file này để lấy Provider đếm số thông báo tổng hợp (đã trừ đi những cái đã đọc)
+import 'notifications/notifications_screen.dart';
+
 class AdminMainScreen extends ConsumerWidget {
   final StatefulNavigationShell navigationShell;
 
@@ -19,35 +19,9 @@ class AdminMainScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // --- 1. LOGIC ĐẾM SỐ THÔNG BÁO ---
-    final roomsAsyncValue = ref.watch(roomListStreamProvider);
-    int notificationCount = 0;
-
-    // Quét ngầm danh sách phòng để đếm xem có bao nhiêu phòng dính cảnh báo
-    roomsAsyncValue.whenData((rooms) {
-      final today = DateTime.now();
-      for (var room in rooms) {
-        if (room.status == RoomStatus.rented && room.contractEndDate != null) {
-          final endDate = DateTime(
-            room.contractEndDate!.year,
-            room.contractEndDate!.month,
-            room.contractEndDate!.day,
-          );
-          final currentDate = DateTime(today.year, today.month, today.day);
-          final daysLeft = endDate.difference(currentDate).inDays;
-
-          // Tính tổng thời hạn gốc của hợp đồng
-          final totalDuration = room.contractEndDate!
-              .difference(room.contractStartDate!)
-              .inDays;
-
-          // SỬA ĐIỀU KIỆN ĐẾM: Đếm nếu còn dưới 30 ngày HOẶC nếu đó là HĐ ngắn hạn theo tháng
-          if (daysLeft <= 30 || totalDuration <= 31) {
-            notificationCount++;
-          }
-        }
-      }
-    });
+    // --- 1. LOGIC ĐẾM SỐ THÔNG BÁO (SIÊU NGẮN GỌN) ---
+    // Gọi thẳng Provider từ file thông báo sang. Nó tự động đếm cả Firebase và Hợp đồng!
+    final notificationCount = ref.watch(unreadNotificationCountProvider);
 
     return Scaffold(
       body: navigationShell,
@@ -66,13 +40,11 @@ class AdminMainScreen extends ConsumerWidget {
             label: 'Phòng trọ',
           ),
 
-          // --- 2. TAB THÔNG BÁO CÓ GẮN "CHẤM ĐỎ" CHUẨN APP NGÂN HÀNG ---
+          // --- 2. TAB THÔNG BÁO GẮN CHẤM ĐỎ ---
           NavigationDestination(
-            // Dùng widget Badge bọc ngoài Icon để tạo chấm đỏ
             icon: Badge(
-              isLabelVisible:
-                  notificationCount > 0, // Ẩn hoàn toàn nếu không có thông báo
-              label: Text(notificationCount.toString()), // Hiển thị số lượng
+              isLabelVisible: notificationCount > 0,
+              label: Text(notificationCount.toString()),
               child: const Icon(Icons.notifications_none),
             ),
             selectedIcon: Badge(
@@ -83,7 +55,6 @@ class AdminMainScreen extends ConsumerWidget {
             label: 'Thông báo',
           ),
 
-          // -------------------------------------------------------------
           const NavigationDestination(
             icon: Icon(Icons.people_outline),
             selectedIcon: Icon(Icons.people, color: Colors.blue),

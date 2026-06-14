@@ -31,24 +31,49 @@ class DashboardScreen extends HookConsumerWidget {
     final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: const Color(
+        0xFFF4F6F9,
+      ), // Nền xám nhạt đồng bộ NestFinder
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        titleSpacing: 16,
+        title: Row(
           children: [
-            Text(
-              'Xin chào, Quản lý!',
-              style: TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-            Text(
-              'Khu trọ Hoa Mai',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
               ),
+              child: const Icon(
+                Icons.home_work,
+                color: Color(0xFF2E7D32),
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Xin chào, Quản lý!',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  'Khu trọ Hoa Mai',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.black87,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -56,13 +81,14 @@ class DashboardScreen extends HookConsumerWidget {
           IconButton(
             icon: const Icon(
               Icons.notifications_none_rounded,
-              color: Colors.black,
+              color: Colors.black87,
             ),
             onPressed: () => context.push('/admin/notifications'),
           ),
           const Padding(
-            padding: EdgeInsets.only(right: 16.0),
+            padding: EdgeInsets.only(right: 16.0, left: 8.0),
             child: CircleAvatar(
+              radius: 18,
               backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=11'),
             ),
           ),
@@ -70,74 +96,79 @@ class DashboardScreen extends HookConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          // Kéo để làm mới dữ liệu (nếu cần thiết)
+          // Kéo để làm mới dữ liệu
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // --- KHU VỰC 1: BỨC TRANH TÀI CHÍNH THÁNG NÀY ---
               _buildFinancialCard(invoicesAsync, currencyFormat),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
 
               // --- KHU VỰC 2: PHÍM TẮT HÀNH ĐỘNG ---
-              const Text(
-                'Hành động nhanh',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              _buildSectionTitle('HÀNH ĐỘNG NHANH'),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildQuickAction(
+                      context,
+                      Icons.add_home_work_outlined,
+                      'Thêm phòng',
+                      Colors.blue,
+                      () => context.push('/admin/properties/add'),
+                    ),
+                    _buildQuickAction(
+                      context,
+                      Icons.electric_meter_outlined,
+                      'Chốt số',
+                      Colors.orange,
+                      () {},
+                    ),
+                    _buildQuickAction(
+                      context,
+                      Icons.description_outlined,
+                      'Hợp đồng',
+                      Colors.purple,
+                      () {},
+                    ),
+                    _buildQuickAction(
+                      context,
+                      Icons.group_add_outlined,
+                      'Khách mới',
+                      const Color(0xFF2E7D32),
+                      () {},
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildQuickAction(
-                    context,
-                    Icons.add_home_work_outlined,
-                    'Thêm phòng',
-                    Colors.blue,
-                    () => context.push('/admin/properties/add'),
-                  ),
-                  _buildQuickAction(
-                    context,
-                    Icons.electric_meter_outlined,
-                    'Chốt số',
-                    Colors.orange,
-                    () {},
-                  ),
-                  _buildQuickAction(
-                    context,
-                    Icons.description_outlined,
-                    'Hợp đồng',
-                    Colors.purple,
-                    () {},
-                  ),
-                  _buildQuickAction(
-                    context,
-                    Icons.group_add_outlined,
-                    'Khách mới',
-                    Colors.green,
-                    () {},
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
 
               // --- KHU VỰC 3: THỐNG KÊ PHÒNG TRỌ (GRID) ---
-              const Text(
-                'Hiện trạng khu trọ',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
+              _buildSectionTitle('HIỆN TRẠNG KHU TRỌ'),
+              const SizedBox(height: 16),
               _buildRoomStatsGrid(roomsAsync),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
 
               // --- KHU VỰC 4: BẢNG TIN TỨC THỜI (CẦN XỬ LÝ) ---
-              const Text(
-                'Sự kiện cần chú ý',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
+              _buildSectionTitle('SỰ KIỆN CẦN CHÚ Ý'),
+              const SizedBox(height: 16),
               _buildLiveFeed(roomsAsync, invoicesAsync, currencyFormat),
 
               const SizedBox(height: 40), // Cắt lề đáy
@@ -152,34 +183,56 @@ class DashboardScreen extends HookConsumerWidget {
   // CÁC WIDGET THÀNH PHẦN (ATOMIC COMPONENTS)
   // ==========================================
 
-  // 1. Thẻ Báo cáo Tài chính
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        color: Colors.grey,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
+  // 1. Thẻ Báo cáo Tài chính (Phong cách thẻ tín dụng cao cấp)
   Widget _buildFinancialCard(
     AsyncValue<List<Map<String, dynamic>>> invoicesAsync,
     NumberFormat format,
   ) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade800, Colors.blue.shade600],
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF1E3A8A),
+            Color(0xFF3B82F6),
+          ], // Dark blue to bright blue
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
             color: Colors.blue.withValues(alpha: 0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: invoicesAsync.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator(color: Colors.white)),
-        error: (e, _) => const Text(
-          'Lỗi tải dữ liệu',
-          style: TextStyle(color: Colors.white),
+        loading: () => const SizedBox(
+          height: 120,
+          child: Center(child: CircularProgressIndicator(color: Colors.white)),
+        ),
+        error: (e, _) => const SizedBox(
+          height: 120,
+          child: Center(
+            child: Text(
+              'Lỗi tải dữ liệu',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
         ),
         data: (invoices) {
           double totalExpected = 0;
@@ -199,62 +252,107 @@ class DashboardScreen extends HookConsumerWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Doanh thu dự kiến tháng này',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'DOANH THU DỰ KIẾN',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'T${DateTime.now().month}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               Text(
                 format.format(totalExpected),
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Divider(color: Colors.white24, height: 1),
-              ),
+              const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Đã thu',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        format.format(totalCollected),
-                        style: const TextStyle(
-                          color: Colors.greenAccent,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'ĐÃ THU',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(
+                          format.format(totalCollected),
+                          style: const TextStyle(
+                            color: Color(0xFF6EE7B7),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ), // Xanh ngọc
+                        ),
+                      ],
+                    ),
                   ),
-                  Container(width: 1, height: 30, color: Colors.white24),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Chưa thu',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        format.format(totalPending),
-                        style: const TextStyle(
-                          color: Colors.orangeAccent,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                  Container(
+                    width: 1,
+                    height: 30,
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'CHƯA THU',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(
+                          format.format(totalPending),
+                          style: const TextStyle(
+                            color: Color(0xFFFCD34D),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ), // Vàng cam
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -275,28 +373,32 @@ class DashboardScreen extends HookConsumerWidget {
   ) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(icon, color: color, size: 28),
           ),
           const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade800,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // 3. Lưới thống kê phòng (Lấy dữ liệu thật)
+  // 3. Lưới thống kê phòng
   Widget _buildRoomStatsGrid(AsyncValue<List<RoomModel>> roomsAsync) {
     return roomsAsync.when(
       loading: () => const SizedBox(
@@ -316,23 +418,23 @@ class DashboardScreen extends HookConsumerWidget {
 
         return GridView.count(
           crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.5, // Thẻ dẹt hơn cho hiện đại
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.6,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
             _buildMiniStatCard(
-              'Tổng số phòng',
+              'Tổng phòng',
               '$total',
               Icons.meeting_room,
               Colors.blue,
             ),
             _buildMiniStatCard(
-              'Đang cho thuê',
+              'Đang thuê',
               '$rented',
-              Icons.check_circle,
-              Colors.green,
+              Icons.how_to_reg,
+              const Color(0xFF2E7D32),
             ),
             _buildMiniStatCard(
               'Phòng trống',
@@ -343,7 +445,7 @@ class DashboardScreen extends HookConsumerWidget {
             _buildMiniStatCard(
               'Bảo trì',
               '$maintenance',
-              Icons.build,
+              Icons.build_circle_outlined,
               Colors.red,
             ),
           ],
@@ -359,11 +461,17 @@ class DashboardScreen extends HookConsumerWidget {
     Color color,
   ) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade100),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -371,12 +479,23 @@ class DashboardScreen extends HookConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 20, color: color),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 16, color: color),
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -386,31 +505,32 @@ class DashboardScreen extends HookConsumerWidget {
           const Spacer(),
           Text(
             value,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              color: Colors.black87,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // 4. Bảng tin sự kiện (Gom chung các cảnh báo)
+  // 4. Bảng tin sự kiện
   Widget _buildLiveFeed(
     AsyncValue<List<RoomModel>> roomsAsync,
     AsyncValue<List<Map<String, dynamic>>> invoicesAsync,
     NumberFormat format,
   ) {
-    // SỬA LỖI: Dùng maybeWhen thay cho valueOrNull để tương thích 100% với mọi bản Riverpod
     final rooms = roomsAsync.maybeWhen(
       data: (data) => data,
       orElse: () => <RoomModel>[],
     );
-
     final invoices = invoicesAsync.maybeWhen(
       data: (data) => data,
       orElse: () => <Map<String, dynamic>>[],
     );
 
-    // Hiển thị loading nếu 1 trong 2 đang tải và chưa có dữ liệu hiển thị
     if ((rooms.isEmpty && roomsAsync.isLoading) ||
         (invoices.isEmpty && invoicesAsync.isLoading)) {
       return const Padding(
@@ -426,12 +546,12 @@ class DashboardScreen extends HookConsumerWidget {
     for (var room in brokenRooms) {
       feedItems.add(
         _buildAlertTile(
-          icon: Icons.plumbing,
+          icon: Icons.build_circle_outlined,
           color: Colors.red,
-          title: 'Phòng ${room.name} đang báo lỗi/bảo trì',
+          title: 'Phòng ${room.name} cần bảo trì',
           subtitle: room.description?.isNotEmpty == true
               ? room.description!
-              : 'Cần kiểm tra ngay',
+              : 'Yêu cầu kiểm tra hệ thống',
         ),
       );
     }
@@ -441,23 +561,21 @@ class DashboardScreen extends HookConsumerWidget {
     for (var inv in unpaidInvoices) {
       feedItems.add(
         _buildAlertTile(
-          icon: Icons.payment,
-          color: Colors.orange,
-          title: '${inv['roomName']} chưa thanh toán',
+          icon: Icons.warning_amber_rounded,
+          color: Colors.orange.shade600,
+          title: '${inv['roomName']} chưa đóng tiền',
           subtitle: 'Cần thu: ${format.format(inv['totalAmount'] ?? 0)}',
         ),
       );
     }
 
-    // 4.3. Quét hóa đơn VỪA THANH TOÁN (Hiển thị màu xanh cho có không khí tích cực)
-    final paidInvoices = invoices
-        .where((i) => i['status'] == 'paid')
-        .take(3); // Chỉ lấy 3 cái gần nhất
+    // 4.3. Quét hóa đơn VỪA THANH TOÁN
+    final paidInvoices = invoices.where((i) => i['status'] == 'paid').take(3);
     for (var inv in paidInvoices) {
       feedItems.add(
         _buildAlertTile(
-          icon: Icons.check_circle,
-          color: Colors.green,
+          icon: Icons.check_circle_outline,
+          color: const Color(0xFF2E7D32),
           title: '${inv['roomName']} đã thanh toán',
           subtitle: 'Đã thu: ${format.format(inv['totalAmount'] ?? 0)}',
         ),
@@ -466,11 +584,21 @@ class DashboardScreen extends HookConsumerWidget {
 
     if (feedItems.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
         alignment: Alignment.center,
-        child: const Text(
-          'Mọi thứ đang hoạt động hoàn hảo! 🎉',
-          style: TextStyle(color: Colors.grey),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.task_alt, size: 48, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            const Text(
+              'Không có sự kiện nào cần xử lý',
+              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
+            ),
+          ],
         ),
       );
     }
@@ -485,27 +613,26 @@ class DashboardScreen extends HookConsumerWidget {
     required String subtitle,
   }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.shade100,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(icon, color: color, size: 24),
           ),
@@ -517,14 +644,19 @@ class DashboardScreen extends HookConsumerWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w800,
                     fontSize: 14,
+                    color: Colors.black87,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),

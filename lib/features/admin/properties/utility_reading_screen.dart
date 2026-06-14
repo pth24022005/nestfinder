@@ -3,7 +3,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'properties_screen.dart'; // Import file chứa RoomModel của bạn
+import 'properties_screen.dart';
 
 class UtilityReadingScreen extends HookConsumerWidget {
   final RoomModel room;
@@ -12,68 +12,59 @@ class UtilityReadingScreen extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 1. Khởi tạo dữ liệu và Trạng thái
-    // Nếu phòng chưa có chỉ số cũ (null) thì mặc định là 0
+    // 1. Khởi tạo dữ liệu
     final oldElectricity = room.electricityIndex ?? 0;
     final oldWater = room.waterIndex ?? 0;
 
     final newElecController = useTextEditingController();
     final newWaterController = useTextEditingController();
-    final isSubmitting = useState(false); // Trạng thái nút bấm xoay loading
+    final isSubmitting = useState(false);
 
-    // 2. Hàm xử lý Logic khi bấm nút "Xác nhận"
-    // Hàm xử lý Logic khi bấm nút "Xác nhận & Gửi thông báo"
-    Future<void> _submitReading() async {
+    // Hàm hỗ trợ thông báo
+    void showError(String message, {bool isWarning = false}) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: isWarning ? Colors.orange.shade700 : Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+
+    // 2. Logic Xử lý Chốt số & Tạo hóa đơn (Giữ nguyên 100%)
+    Future<void> submitReading() async {
       FocusScope.of(context).unfocus();
 
       final newElecStr = newElecController.text.trim();
       final newWaterStr = newWaterController.text.trim();
 
       if (newElecStr.isEmpty || newWaterStr.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng nhập đầy đủ số mới!'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
+        return showError('Vui lòng nhập đầy đủ số điện và số nước mới!');
       }
 
       final newElec = int.tryParse(newElecStr);
       final newWater = int.tryParse(newWaterStr);
 
       if (newElec == null || newWater == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Chỉ số phải là con số hợp lệ!'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
+        return showError('Chỉ số nhập vào phải là con số hợp lệ!');
       }
 
       if (newElec < oldElectricity || newWater < oldWater) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Lỗi: Số mới không được nhỏ hơn số cũ!'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
+        return showError('Số mới KHÔNG ĐƯỢC nhỏ hơn số cũ!', isWarning: true);
       }
 
       isSubmitting.value = true;
       try {
         final firestore = FirebaseFirestore.instance;
-        final batch = firestore
-            .batch(); // Dùng Batch để chạy 2 lệnh lưu cùng 1 lúc
+        final batch = firestore.batch();
 
-        // 1. TÍNH TOÁN TIỀN NONG (Lấy giá từ phòng, nếu phòng chưa cài đặt thì lấy giá mặc định)
-        final elecPrice = room.electricityPrice ?? 3500.0; // Mặc định 3500đ/số
-        final waterPrice = room.waterPrice ?? 25000.0; // Mặc định 25k/khối
-        final internetPrice =
-            room.internetPrice ?? 100000.0; // Mặc định 100k/tháng
-        final servicePrice = room.servicePrice ?? 50000.0; // Mặc định 50k/tháng
+        // TÍNH TOÁN TIỀN NONG
+        final elecPrice = room.electricityPrice ?? 3500.0;
+        final waterPrice = room.waterPrice ?? 25000.0;
+        final internetPrice = room.internetPrice ?? 100000.0;
+        final servicePrice = room.servicePrice ?? 50000.0;
 
         final elecUsage = newElec - oldElectricity;
         final waterUsage = newWater - oldWater;
@@ -81,18 +72,18 @@ class UtilityReadingScreen extends HookConsumerWidget {
         final elecCost = elecUsage * elecPrice;
         final waterCost = waterUsage * waterPrice;
 
-        // Tổng tiền = Tiền phòng + Điện + Nước + Mạng + Dịch vụ
+        // Tổng tiền
         final totalBill =
             room.price + elecCost + waterCost + internetPrice + servicePrice;
 
-        // 2. LỆNH 1: CẬP NHẬT SỐ ĐIỆN NƯỚC MỚI CHO PHÒNG
+        // LỆNH 1: CẬP NHẬT SỐ ĐIỆN NƯỚC MỚI CHO PHÒNG
         final roomRef = firestore.collection('rooms').doc(room.id);
         batch.update(roomRef, {
           'electricityIndex': newElec,
           'waterIndex': newWater,
         });
 
-        // 3. LỆNH 2: TẠO HÓA ĐƠN MỚI TRONG BẢNG 'invoices'
+        // LỆNH 2: TẠO HÓA ĐƠN
         final invoiceRef = firestore.collection('invoices').doc();
         final currentMonth = DateTime.now();
 
@@ -102,8 +93,6 @@ class UtilityReadingScreen extends HookConsumerWidget {
           'tenantName': room.tenantName,
           'month': currentMonth.month,
           'year': currentMonth.year,
-
-          // Chi tiết các khoản thu
           'rentCost': room.price,
           'electricityUsage': elecUsage,
           'electricityCost': elecCost,
@@ -112,12 +101,11 @@ class UtilityReadingScreen extends HookConsumerWidget {
           'internetCost': internetPrice,
           'serviceCost': servicePrice,
           'totalAmount': totalBill,
-
-          'status': 'unpaid', // Trạng thái: Chưa thanh toán
+          'status': 'unpaid',
           'createdAt': FieldValue.serverTimestamp(),
         });
 
-        // 4. THỰC THI TOÀN BỘ LỆNH
+        // THỰC THI BATCH
         await batch.commit();
 
         if (context.mounted) {
@@ -127,72 +115,92 @@ class UtilityReadingScreen extends HookConsumerWidget {
               backgroundColor: Colors.green,
             ),
           );
-          context.pop(); // Quay về màn hình Chi tiết phòng
+          context.pop();
         }
       } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
-          );
-        }
+        showError('Lỗi kết nối máy chủ: $e');
       } finally {
         isSubmitting.value = false;
       }
     }
 
-    // 3. GIAO DIỆN
-    return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        title: Text(
-          'Chốt điện nước ${room.name}',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
+    // 3. GIAO DIỆN CHÍNH
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.black87),
+          centerTitle: false,
+          title: Text(
+            'Chốt số - ${room.name}',
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 24,
+              color: Colors.black87,
+              letterSpacing: -0.5,
+            ),
           ),
         ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // Thẻ nhập Chỉ số Điện
-            _buildReadingCard(
-              title: 'Chỉ số Điện (kWh)',
-              icon: Icons.bolt,
-              iconColor: Colors.orange,
-              oldValue: oldElectricity,
-              newController: newElecController,
-            ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'NHẬP CHỈ SỐ THÁNG NÀY',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 16),
 
-            const SizedBox(height: 16),
+              // Thẻ Điện
+              _buildModernReadingCard(
+                title: 'Điện năng tiêu thụ (kWh)',
+                icon: Icons.bolt,
+                iconColor: Colors.orange.shade500,
+                iconBg: Colors.orange.shade50,
+                oldValue: oldElectricity,
+                newController: newElecController,
+              ),
 
-            // Thẻ nhập Chỉ số Nước
-            _buildReadingCard(
-              title: 'Chỉ số Nước (m³)',
-              icon: Icons.water_drop,
-              iconColor: Colors.blue,
-              oldValue: oldWater,
-              newController: newWaterController,
-            ),
-          ],
+              const SizedBox(height: 24),
+
+              // Thẻ Nước
+              _buildModernReadingCard(
+                title: 'Nước sinh hoạt (m³)',
+                icon: Icons.water_drop,
+                iconColor: Colors.blue.shade500,
+                iconBg: Colors.blue.shade50,
+                oldValue: oldWater,
+                newController: newWaterController,
+              ),
+
+              const SizedBox(height: 100), // Không gian cuộn dưới cùng
+            ],
+          ),
         ),
-      ),
 
-      // Nút Xác nhận ghim dưới cùng
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
+        // --- NÚT XÁC NHẬN ---
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        floatingActionButton: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          color: Colors.white,
           child: ElevatedButton(
-            onPressed: isSubmitting.value ? null : _submitReading,
+            onPressed: isSubmitting.value ? null : submitReading,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              backgroundColor: const Color(0xFF1C1C1E), // Đen nhám
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
               ),
             ),
             child: isSubmitting.value
@@ -205,11 +213,12 @@ class UtilityReadingScreen extends HookConsumerWidget {
                     ),
                   )
                 : const Text(
-                    'Xác nhận & Gửi thông báo',
+                    'XUẤT HÓA ĐƠN THÁNG NÀY',
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
                       color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
                     ),
                   ),
           ),
@@ -218,11 +227,14 @@ class UtilityReadingScreen extends HookConsumerWidget {
     );
   }
 
-  // Khung UI chuẩn cho 1 khối chốt điện/nước (Tái sử dụng)
-  Widget _buildReadingCard({
+  // ==========================================
+  // WIDGET UI HỖ TRỢ (THẺ CHỐT SỐ CHUẨN NESTFINDER)
+  // ==========================================
+  Widget _buildModernReadingCard({
     required String title,
     required IconData icon,
     required Color iconColor,
+    required Color iconBg,
     required int oldValue,
     required TextEditingController newController,
   }) {
@@ -230,75 +242,149 @@ class UtilityReadingScreen extends HookConsumerWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade100, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Tiêu đề & Icon
           Row(
             children: [
-              Icon(icon, color: iconColor),
-              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 22),
+              ),
+              const SizedBox(width: 12),
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
+                  color: Colors.black87,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
+
+          // Row chứa Số Cũ và Số Mới
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Ô chứa SỐ CŨ (Màu xám, khóa không cho nhập)
+              // Cột: Số cũ (Chỉ đọc)
               Expanded(
-                child: TextField(
-                  controller: TextEditingController(text: oldValue.toString()),
-                  readOnly: true, // Khóa
-                  decoration: InputDecoration(
-                    labelText: 'Số cũ',
-                    filled: true,
-                    fillColor: Colors.grey.shade100, // Nền xám
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Số tháng trước',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
+                    const SizedBox(height: 6),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors
+                            .grey
+                            .shade50, // Nền xám nhạt thể hiện việc không thể sửa
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Text(
+                        oldValue.toString(),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
                     ),
-                  ),
-                  style: TextStyle(
-                    color: Colors.grey.shade700,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  ],
                 ),
               ),
 
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 12),
-                child: Icon(Icons.arrow_forward, color: Colors.grey),
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    top: 20,
+                  ), // Đẩy icon xuống cân bằng với box input
+                  child: Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.grey,
+                    size: 20,
+                  ),
+                ),
               ),
 
-              // Ô chứa SỐ MỚI (Màu trắng, cho phép nhập số)
+              // Cột: Số mới (Nhập liệu)
               Expanded(
-                child: TextField(
-                  controller: newController,
-                  keyboardType: TextInputType.number, // Bật bàn phím số
-                  decoration: InputDecoration(
-                    labelText: 'Số mới',
-                    hintText: 'Nhập số...',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Chỉ số mới',
+                      style: TextStyle(
+                        color: Colors.blue.shade700,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
+                    const SizedBox(height: 6),
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50.withValues(
+                          alpha: 0.5,
+                        ), // Nền xanh nhạt nổi bật
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: TextField(
+                        controller: newController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.blue,
+                        ),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 13,
+                          ),
+                          border: InputBorder.none,
+                          hintText: 'Nhập...',
+                          hintStyle: TextStyle(
+                            color: Colors.grey,
+                            fontWeight: FontWeight.normal,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  ],
                 ),
               ),
             ],

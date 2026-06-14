@@ -111,7 +111,6 @@ class RoomDetailScreen extends ConsumerWidget {
       }
     }
 
-    // --- MÀU SẮC NỀN CHUNG CỦA APP ---
     final Color bgColor = const Color(0xFFF4F6F9);
 
     return Scaffold(
@@ -146,7 +145,6 @@ class RoomDetailScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- TIÊU ĐỀ & TRẠNG THÁI ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -194,7 +192,6 @@ class RoomDetailScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
 
-            // --- THẺ THÔNG TIN CƠ BẢN (GRID 2 CỘT) ---
             Row(
               children: [
                 Expanded(
@@ -222,7 +219,6 @@ class RoomDetailScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
 
-            // --- THẺ NỘI THẤT ---
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -276,7 +272,6 @@ class RoomDetailScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 32),
 
-            // --- HỒ SƠ KHÁCH THUÊ ---
             if (liveRoom.status == RoomStatus.rented &&
                 liveRoom.tenantName != null) ...[
               const Text(
@@ -297,7 +292,6 @@ class RoomDetailScreen extends ConsumerWidget {
                 ),
                 child: Column(
                   children: [
-                    // Avatar & Tên khách
                     Row(
                       children: [
                         CircleAvatar(
@@ -358,7 +352,6 @@ class RoomDetailScreen extends ConsumerWidget {
                       child: Divider(height: 1, color: Color(0xFFEEEEEE)),
                     ),
 
-                    // Chi tiết CCCD, Địa chỉ, Hợp đồng
                     _buildTenantDetailRow(
                       Icons.badge_outlined,
                       'CCCD',
@@ -383,7 +376,6 @@ class RoomDetailScreen extends ConsumerWidget {
 
                     const SizedBox(height: 24),
 
-                    // Hai nút hành động: Gia hạn & Trả phòng
                     Row(
                       children: [
                         Expanded(
@@ -444,84 +436,132 @@ class RoomDetailScreen extends ConsumerWidget {
                 ),
               ),
             ],
+            const SizedBox(
+              height: 100,
+            ), // Cắt lề đáy để cuộn không bị che bởi nút
           ],
         ),
       ),
 
-      // --- NÚT BOTTOM (ĐỘNG LOGIC THEO KỲ CHỐT HÓA ĐƠN) ---
+      // --- NÚT BOTTOM (PHÂN NHÁNH CHUẨN LOGIC) ---
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
-          child: invoiceAsync.when(
-            loading: () => const SizedBox(
-              height: 56,
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (err, stack) => Text('Lỗi: $err'),
-            data: (latestInvoice) {
-              bool isSubmitMode = false;
-              String buttonLabel = '';
-              Color buttonColor = const Color(
-                0xFF1E3A8A,
-              ); // Màu Dark Blue nhã nhặn như thiết kế
-              IconData buttonIcon = Icons.receipt_long;
-
-              if (latestInvoice != null) {
-                final invMonth = latestInvoice['month'];
-                final invYear = latestInvoice['year'];
-
-                if (invMonth == now.month && invYear == now.year) {
-                  isSubmitMode = false;
-                  buttonLabel = 'XEM HÓA ĐƠN THÁNG $invMonth';
-                  buttonColor = const Color(0xFF10B981); // Xanh lá cây
-                  buttonIcon = Icons.visibility;
-                } else {
-                  if (isLast3Days) {
-                    isSubmitMode = true;
-                    buttonLabel = 'CHỐT ĐIỆN NƯỚC THÁNG ${now.month}';
-                    buttonIcon = Icons.flash_on;
-                  } else {
-                    isSubmitMode = false;
-                    buttonLabel = 'XEM HÓA ĐƠN THÁNG $invMonth';
-                    buttonColor = Colors.grey.shade800;
-                    buttonIcon = Icons.history;
-                  }
-                }
-              } else {
-                isSubmitMode = true;
-                buttonLabel = 'CHỐT ĐIỆN NƯỚC (KỲ ĐẦU TIÊN)';
-                buttonIcon = Icons.receipt;
+          child: Builder(
+            builder: (context) {
+              // 1. NẾU LÀ PHÒNG TRỐNG -> Hiện nút Thêm Khách / Tạo Hợp Đồng
+              if (liveRoom.status == RoomStatus.available) {
+                return ElevatedButton.icon(
+                  onPressed: () {
+                    // Nhảy sang màn hình tạo hợp đồng (cũng là màn hình nạp thông tin khách)
+                    context.push(
+                      '/admin/properties/detail/contract',
+                      extra: liveRoom,
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.person_add_alt_1,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  label: const Text(
+                    'THÊM KHÁCH THUÊ',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(
+                      0xFF2E7D32,
+                    ), // Màu Xanh lá NestFinder
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                );
               }
 
-              return ElevatedButton.icon(
-                onPressed: () {
-                  if (isSubmitMode) {
-                    context.push(
-                      '/admin/properties/detail/reading',
-                      extra: room,
-                    );
+              // 2. NẾU LÀ PHÒNG BẢO TRÌ -> Ẩn luôn nút
+              if (liveRoom.status == RoomStatus.maintenance) {
+                return const SizedBox.shrink();
+              }
+
+              // 3. NẾU ĐÃ CÓ KHÁCH -> Logic Chốt điện nước / Hóa đơn
+              return invoiceAsync.when(
+                loading: () => const SizedBox(
+                  height: 56,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (err, stack) => Text('Lỗi: $err'),
+                data: (latestInvoice) {
+                  bool isSubmitMode = false;
+                  String buttonLabel = '';
+                  Color buttonColor = const Color(0xFF1E3A8A); // Màu Dark Blue
+                  IconData buttonIcon = Icons.receipt_long;
+
+                  if (latestInvoice != null) {
+                    final invMonth = latestInvoice['month'];
+                    final invYear = latestInvoice['year'];
+
+                    if (invMonth == now.month && invYear == now.year) {
+                      isSubmitMode = false;
+                      buttonLabel = 'XEM HÓA ĐƠN THÁNG $invMonth';
+                      buttonColor = const Color(0xFF10B981); // Xanh lá cây nhạt
+                      buttonIcon = Icons.visibility;
+                    } else {
+                      if (isLast3Days) {
+                        isSubmitMode = true;
+                        buttonLabel = 'CHỐT ĐIỆN NƯỚC THÁNG ${now.month}';
+                        buttonIcon = Icons.flash_on;
+                      } else {
+                        isSubmitMode = false;
+                        buttonLabel = 'XEM HÓA ĐƠN THÁNG $invMonth';
+                        buttonColor = Colors.grey.shade800;
+                        buttonIcon = Icons.history;
+                      }
+                    }
                   } else {
-                    _showInvoiceDialog(context, latestInvoice!);
+                    isSubmitMode = true;
+                    buttonLabel = 'CHỐT ĐIỆN NƯỚC (KỲ ĐẦU TIÊN)';
+                    buttonIcon = Icons.receipt;
                   }
+
+                  return ElevatedButton.icon(
+                    onPressed: () {
+                      if (isSubmitMode) {
+                        context.push(
+                          '/admin/properties/detail/reading',
+                          extra: room,
+                        );
+                      } else {
+                        _showInvoiceDialog(context, latestInvoice!);
+                      }
+                    },
+                    icon: Icon(buttonIcon, color: Colors.white, size: 20),
+                    label: Text(
+                      buttonLabel,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: buttonColor,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  );
                 },
-                icon: Icon(buttonIcon, color: Colors.white, size: 20),
-                label: Text(
-                  buttonLabel,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: buttonColor,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
               );
             },
           ),
@@ -531,7 +571,7 @@ class RoomDetailScreen extends ConsumerWidget {
   }
 
   // ==========================================
-  // UI HELPER WIDGETS (Cho giao diện mới)
+  // UI HELPER WIDGETS
   // ==========================================
 
   Widget _buildSquareInfoCard({
@@ -620,7 +660,6 @@ class RoomDetailScreen extends ConsumerWidget {
     );
   }
 
-  // Hàm hiển thị Popup Hóa Đơn Chi Tiết (Giữ nguyên logic cũ)
   void _showInvoiceDialog(
     BuildContext context,
     Map<String, dynamic> invoiceData,
