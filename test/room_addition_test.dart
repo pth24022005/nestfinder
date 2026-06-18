@@ -2,137 +2,48 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 
 void main() {
-  // Gom nhóm các bài test liên quan đến tính năng Quản lý Phòng
-  group('Kiểm thử tính năng Quản lý Phòng trọ (Room Management)', () {
-    test(
-      'Thêm thành công hàng loạt 10 phòng mẫu và kiểm định dữ liệu đầu ra',
-      () async {
-        // ==========================================
-        // 1. ARRANGE (Chuẩn bị môi trường & Dữ liệu)
-        // ==========================================
-        // Khởi tạo một Firebase giả lập trên RAM để test (Không đụng chạm database thật)
-        final fakeFirestore = FakeFirebaseFirestore();
-        final batch = fakeFirestore.batch();
+  group('Kiểm thử logic Firestore (Unit Test) - NestFinder', () {
+    late FakeFirebaseFirestore fakeFirestore;
 
-        final sampleRooms = [
-          {
-            'name': 'P.101',
-            'price': 3500000,
-            'status': 'available',
-            'area': 25.0,
-          },
-          {
-            'name': 'P.102',
-            'price': 3500000,
-            'status': 'rented',
-            'tenantName': 'Nguyễn Văn Tuấn',
-          },
-          {
-            'name': 'P.103',
-            'price': 3000000,
-            'status': 'maintenance',
-            'area': 20.0,
-          },
-          {
-            'name': 'P.201',
-            'price': 4000000,
-            'status': 'rented',
-            'tenantName': 'Trần Thu Hà',
-          },
-          {
-            'name': 'P.202',
-            'price': 3800000,
-            'status': 'available',
-            'area': 28.0,
-          },
-          {
-            'name': 'P.203',
-            'price': 3800000,
-            'status': 'rented',
-            'tenantName': 'Lê Hoàng Phong',
-          },
-          {
-            'name': 'P.301',
-            'price': 4500000,
-            'status': 'available',
-            'area': 35.0,
-          },
-          {
-            'name': 'P.302',
-            'price': 4200000,
-            'status': 'rented',
-            'tenantName': 'Phạm Quang Dũng',
-          },
-          {
-            'name': 'P.303',
-            'price': 3500000,
-            'status': 'maintenance',
-            'area': 25.0,
-          },
-          {
-            'name': 'P.401',
-            'price': 5500000,
-            'status': 'rented',
-            'tenantName': 'Đặng Mai Phương',
-          },
-        ];
+    setUp(() {
+      // Khởi tạo Database giả lập trước mỗi test case
+      fakeFirestore = FakeFirebaseFirestore();
+    });
 
-        // ==========================================
-        // 2. ACT (Thực thi hành động)
-        // ==========================================
-        for (var roomData in sampleRooms) {
-          // Dùng fakeFirestore thay vì FirebaseFirestore.instance
-          final docRef = fakeFirestore.collection('rooms').doc();
-          batch.set(docRef, roomData);
-        }
-        // Commit đẩy dữ liệu vào Database giả
-        await batch.commit();
+    test('Thêm thành công 10 phòng và kiểm tra dữ liệu P.101, P.102', () async {
+      // 1. Arrange: Chuẩn bị dữ liệu
+      final batch = fakeFirestore.batch();
+      final roomsCollection = fakeFirestore.collection('rooms');
 
-        // Lấy toàn bộ dữ liệu từ Database giả về để kiểm tra
-        final snapshot = await fakeFirestore.collection('rooms').get();
-        final savedRooms = snapshot.docs;
+      for (int i = 1; i <= 10; i++) {
+        final docRef = roomsCollection.doc('room_$i');
+        batch.set(docRef, {
+          'name': 'P.10$i',
+          'price': 3500000 + (i * 100000),
+          'status': i % 2 == 0 ? 'rented' : 'available',
+          'tenantName': i % 2 == 0 ? 'Khách thuê $i' : null,
+        });
+      }
 
-        // ==========================================
-        // 3. ASSERT (Kiểm định kết quả)
-        // ==========================================
+      // 2. Act: Thực thi hành động ghi vào Database
+      await batch.commit();
 
-        // Kiểm định 1: Xác nhận số lượng phòng được lưu chính xác là 10
-        expect(
-          savedRooms.length,
-          10,
-          reason: 'Hệ thống phải lưu chính xác 10 phòng vào cơ sở dữ liệu',
-        );
+      // 3. Assert: Kiểm định kết quả
+      final snapshot = await roomsCollection.get();
 
-        // Kiểm định 2: Xác nhận phòng đầu tiên có đúng tên và giá không
-        final firstRoom = savedRooms.firstWhere(
-          (doc) => doc['name'] == 'P.101',
-        );
-        expect(firstRoom.exists, true, reason: 'Phải tồn tại phòng tên P.101');
-        expect(
-          firstRoom['price'],
-          3500000,
-          reason: 'Giá phòng P.101 phải là 3,500,000',
-        );
-        expect(
-          firstRoom['status'],
-          'available',
-          reason: 'Trạng thái phòng P.101 phải là available',
-        );
+      // Kiểm tra xem đã tạo đủ 10 phòng chưa
+      expect(snapshot.docs.length, 10);
 
-        // Kiểm định 3: Xác nhận logic dữ liệu khách thuê (Phòng rented phải có tên khách)
-        final rentedRoom = savedRooms.firstWhere(
-          (doc) => doc['name'] == 'P.102',
-        );
-        expect(rentedRoom['status'], 'rented');
-        expect(
-          rentedRoom['tenantName'],
-          'Nguyễn Văn Tuấn',
-          reason: 'Phòng P.102 phải có khách tên Tuấn',
-        );
+      // Lấy dữ liệu phòng P.101 (Phòng số 1 - available)
+      final room101 = snapshot.docs.firstWhere((doc) => doc['name'] == 'P.101');
+      expect(room101['status'], 'available');
+      expect(room101['tenantName'], isNull); // Phòng trống không có khách
 
-        // Nếu code chạy qua được toàn bộ các hàm expect() này mà không báo lỗi
-        // -> BÀI TEST PASS XUẤT SẮC!
-      },
-    );
+      // Lấy dữ liệu phòng P.102 (Phòng số 2 - rented)
+      final room102 = snapshot.docs.firstWhere((doc) => doc['name'] == 'P.102');
+      expect(room102['status'], 'rented');
+      expect(room102['tenantName'], 'Khách thuê 2'); // Đã có khách
+      expect(room102['price'], 3700000);
+    });
   });
 }
